@@ -17,7 +17,8 @@
 - deleted file info is stored in .restore.info, which will be in the home folder
 - file info is stored as filename_inode:/full/path
 
-+ if review by date is implemented, restore file should also include date of deletion
++ if additional stored data componenets are handled, external file indexed by inode
++ maybe something like ".restore.detail"
 
 ## Syntax 
 
