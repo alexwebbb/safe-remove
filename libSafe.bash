@@ -2,6 +2,7 @@
 
 # general function library for safe-remove
 
+# queries restore archive
 function list () {
 	echo "There is nothing here yet!"
 }
@@ -10,7 +11,8 @@ function check () {
 	echo "There is nothing here yet!"
 }
 
-function isError () {
+# clear error conditions. If there is an error, return message
+function validate () {
 	echo "There is nothing here yet!"
 }
 
