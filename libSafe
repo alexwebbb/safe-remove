@@ -18,7 +18,7 @@ check()
 			i) interactBool=true;; # interactive, decide when to delete files, no effect on restore, but thats just because of the spec. could easily be tooled into restore
 			v) verboseBool=true;; # verbose. messages appear when files are restored or removed
 			r) recurseBool=true;; # recursive. allows action on directories
-			*) echo -e "check usage: $(basename $0) [-i]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
+			*) echo -e "check usage: $(basename $0) [-n]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
 			esac
 			optionsChecked=true
 		done
