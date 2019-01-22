@@ -3,22 +3,33 @@
 # general function library for safe-remove
 
 restorePath="${HOME}/deleted/.restore.info"
+inBool="";
+verboseBool=false;
+recurseBool=false;
+optionsChecked=false;
 
 check() 
 {
-	inBool="";
-	verboseBool=false;
-	recurseBool=false;
-	while getopts "iovr" o
-	do	case "$o" in
-		i) inBool=true;;
-		o) inBool=false;;
-		v) verboseBool=true;;
-		r) recurseBool=true;;
-		*) echo -e "check usage: $(basename $0) [-i]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
-		esac
-	done
-	shift $(($OPTIND-1))
+	if ! $optionsChecked; then
+		while getopts "iovr" o
+		do	case "$o" in
+			i) inBool=true;;
+			o) inBool=false;;
+			v) verboseBool=true;;
+			r) recurseBool=true;;
+			*) echo -e "check usage: $(basename $0) [-i]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
+			esac
+			optionsChecked=true
+		done
+		shift $(($OPTIND-1))
+	fi;
+	
+	if [ "$#" -gt "1" ]; then
+		for arg in "$@"; do
+			if [ ! "$arg" == "$1" ] && [ ! -z "$arg" ]; then 
+			check "$arg"; fi
+		done
+	fi
 
 	if validate $1
 	then
@@ -53,8 +64,7 @@ check()
 	fi
 }
 
-# clear error conditions. If there is an error, return message
-# parameters are file path and action
+# parameters are file path, action, recurseBool
 validate() 
 {
 	if $inBool; then action="remove"
@@ -72,7 +82,9 @@ validate()
 		return 0;
 	else
 		if [ -d $1 ]; then
-			errorMessage $action $1 "Is a directory"
+			if ! $recurseBool; then errorMessage $action $1 "Is a directory"; 
+			# else check; 
+			fi
 		else errorMessage $action $1 "No such file or directory"
 		fi
 	fi

@@ -1,0 +1,10 @@
+sh remove dogs2
+touch dogs2
+stat -c %i dogs2
+sh restore ~/deleted/dogs2_17129
+
+
+rm: descend into directory `testDir'? y
+rm: remove regular empty file `testDir/testFile'? n
+rm: remove directory `testDir'? y
+rm: cannot remove `testDir': Directory not empty
