@@ -4,5 +4,6 @@
 
 . ./libSafe
 
-read
+check -io "README.md"
 
+check -oi "test"

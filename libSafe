@@ -1,0 +1,62 @@
+#!bin/bash/
+
+# general function library for safe-remove
+
+# yo, the "function" keyword is a holdover from korn shell and not posix compliant
+
+# queries restore archive
+list() 
+{
+	echo "There is nothing here yet!"
+}
+
+check() 
+{
+	inBool="";
+	while getopts "io" o
+	do	case "$o" in
+		[i]) inBool=true;;
+		[o]) inBool=false;;
+		*) echo "didnt work...";;
+		esac
+	done
+	shift $(($OPTIND-1))
+
+	# ya need to check if its a file here
+	if [ -f $1 ]; then
+		fileId="${1}_$(stat -c %i $1)"
+	else
+		if [ -d $1 ]; then
+			echo "remove: cannot remove '${1}': Is a directory"
+		else echo "remove: cannot remove '${1}': No such file or directory"
+		fi
+		exit
+	fi
+
+	echo $fileId
+	
+	if $inBool
+	then
+		echo "simulated check in"
+	elif ! $inBool
+	then
+		echo "simulated check out"
+	fi
+	echo "We are testing options!"
+}
+
+# clear error conditions. If there is an error, return message
+validate() 
+{
+	echo "There is nothing here yet!"
+}
+
+interact() 
+{
+	echo "There is nothing here yet!"
+}
+
+verbose() 
+{  
+	echo "There is nothing here yet!"
+} 
