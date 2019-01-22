@@ -33,21 +33,23 @@ check()
 	if $inBool
 	then
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
-		echo "${fileId}:$(realpath $1)" >> $restorePath
+		echo "${fileId}:$(readlink -m $1)" >> $restorePath
 		mv $1 "${HOME}/deleted/${fileId}"
 	elif ! $inBool
 	then
 		if [ -e $1 ] && getLine $fileId -q
 		then
 			returnPath=$(getLine $fileId | cut -d":" -f 2)
-			if [ ! -e $returnPath ]
-			then
-				mv "${HOME}/deleted/${fileId}" $returnPath
-				getLine $fileId -v > tmp
-				mv tmp $restorePath
-			else
-				echo "File exists at location already."
-			fi
+			if [ -e $returnPath ]; then
+				read -p "File exists at location already. Do you want to overwrite? y/n: " reply
+				echo "${reply:0:1}" == [yY]
+				if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
+			fi;
+
+			mv "${HOME}/deleted/${fileId}" $returnPath
+			getLine $fileId -v > tmp
+			mv tmp $restorePath
+	
 		else 
 			echo "failure..."
 		fi
@@ -57,6 +59,10 @@ check()
 # clear error conditions. If there is an error, return message
 validate() 
 {
+	if [ "$1" == "" ]; then 
+	echo "Please supply a file name";
+	exit; fi;
+
 	if [ -f $1 ]; then
 		case $(basename $1) in
 			"remove") echo "That isn't possible"; return 1;;
