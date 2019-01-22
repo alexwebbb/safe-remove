@@ -26,7 +26,7 @@
 - similarly, call to restore will be sh restore "filename", of course considering the name now includes the inode
 - must support interactive via -i, just like rm
 - must support verbose via -v, just like rm
-- must support recursive deletion via 
+- must support recursive deletion via -r
 
 + potentially a syntax for reviewing deleted files, like -l to list, and -d for date range
 

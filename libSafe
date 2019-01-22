@@ -2,7 +2,7 @@
 
 # general function library for safe-remove
 
-# yo, the "function" keyword is a holdover from korn shell and not posix compliant
+restorePath="${HOME}/deleted/.restore.info"
 
 # queries restore archive
 list() 
@@ -22,33 +22,63 @@ check()
 	done
 	shift $(($OPTIND-1))
 
-	# ya need to check if its a file here
-	if [ -f $1 ]; then
-		fileId="${1}_$(stat -c %i $1)"
-	else
-		if [ -d $1 ]; then
-			echo "remove: cannot remove '${1}': Is a directory"
-		else echo "remove: cannot remove '${1}': No such file or directory"
-		fi
-		exit
-	fi
-
-	echo $fileId
+	# check if file exists
+	if validate $1
+	then
+		if $inBool; then 
+			fileId="${1}_$(stat -c %i $1)"
+		else fileId=$(basename $1); fi
+	else exit; fi
 	
 	if $inBool
 	then
-		echo "simulated check in"
+		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
+		echo "${fileId}:$(realpath $1)" >> $restorePath
+		mv $1 "${HOME}/deleted/${fileId}"
 	elif ! $inBool
 	then
-		echo "simulated check out"
+		if [ -e $1 ] && getLine $fileId -q
+		then
+			returnPath=$(getLine $fileId | cut -d":" -f 2)
+			if [ ! -e $returnPath ]
+			then
+				mv "${HOME}/deleted/${fileId}" $returnPath
+				getLine $fileId -v > tmp
+				mv tmp $restorePath
+			else
+				echo "File exists at location already."
+			fi
+		else 
+			echo "failure..."
+		fi
 	fi
-	echo "We are testing options!"
 }
 
 # clear error conditions. If there is an error, return message
 validate() 
 {
-	echo "There is nothing here yet!"
+	if [ -f $1 ]; then
+		case $(basename $1) in
+			"remove") echo "That isn't possible"; return 1;;
+			"restore") echo "That isn't possible"; return 1;;
+			"libSafe") echo "Back off dude"; return 1;;
+		esac		
+		return 0;
+	else
+		if $inBool; then action="remove"
+		else action="restore"; fi
+		if [ -d $1 ]; then
+			echo "${action}: cannot ${action} '${1}': Is a directory"
+		else echo "${action}: cannot ${action} '${1}': No such file or directory"
+		fi
+		return 1;
+	fi
+}
+
+# parameters are, fileId, option
+getLine()
+{
+	grep $2 $1 $restorePath
 }
 
 interact() 
