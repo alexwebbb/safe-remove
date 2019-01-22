@@ -87,12 +87,12 @@ validate()
 			if ! $recurseBool; then errorMessage $action $1 "Is a directory"; 
 			else 
 				interact "remove: descend into directory '${1}'? y/n: "
-				check "${1}"*;
-				if [ -z "$(ls -A $1)" ]; then
-					interact "remove: remove empty directory '${1}'? y/n: "
+				if [ ! -z "$(ls -A $1)" ]; then check "${1}"*
+				else interact "remove: remove empty directory '${1}'? y/n: "
 					rmdir $1
-					if verboseBool; then echo "remove: removed directory."; fi
-				elif $interactBool; then echo "remove: ${1} directory is not empty"; fi
+					if $verboseBool; then echo "remove: removed directory."; fi
+				fi
+				if $interactBool; then echo "remove: ${1} directory is not empty"; fi
 				exit;
 			fi
 		else errorMessage $action $1 "No such file or directory"
