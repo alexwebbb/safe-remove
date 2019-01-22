@@ -4,25 +4,22 @@
 
 restorePath="${HOME}/deleted/.restore.info"
 
-# queries restore archive
-list() 
-{
-	echo "There is nothing here yet!"
-}
-
 check() 
 {
 	inBool="";
-	while getopts "io" o
+	verboseBool=false;
+	recurseBool=false;
+	while getopts "iovr" o
 	do	case "$o" in
-		[i]) inBool=true;;
-		[o]) inBool=false;;
-		*) echo "didnt work...";;
+		i) inBool=true;;
+		o) inBool=false;;
+		v) verboseBool=true;;
+		r) recurseBool=true;;
+		*) echo -e "check usage: $(basename $0) [-i]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
 		esac
 	done
 	shift $(($OPTIND-1))
 
-	# check if file exists
 	if validate $1
 	then
 		if $inBool; then 
@@ -35,6 +32,7 @@ check()
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
 		echo "${fileId}:$(readlink -m $1)" >> $restorePath
 		mv $1 "${HOME}/deleted/${fileId}"
+		if $verboseBool; then echo "Removed file."; fi
 	elif ! $inBool
 	then
 		if [ -e $1 ] && getLine $fileId -q
@@ -42,43 +40,48 @@ check()
 			returnPath=$(getLine $fileId | cut -d":" -f 2)
 			if [ -e $returnPath ]; then
 				read -p "File exists at location already. Do you want to overwrite? y/n: " reply
-				echo "${reply:0:1}" == [yY]
 				if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
 			fi;
 
 			mv "${HOME}/deleted/${fileId}" $returnPath
 			getLine $fileId -v > tmp
 			mv tmp $restorePath
-	
+			if $verboseBool; then echo "Restored file."; fi
 		else 
-			echo "failure..."
+			errorMessage "restore" $1 "This file is not being managed by restore currently."
 		fi
 	fi
 }
 
 # clear error conditions. If there is an error, return message
+# parameters are file path and action
 validate() 
 {
-	if [ "$1" == "" ]; then 
-	echo "Please supply a file name";
-	exit; fi;
+	if $inBool; then action="remove"
+	else action="restore"; fi
 
+	if [ "$1" == "" ]; then 
+	errorMessage $action $1 "Please supply a file name"; fi;
+	
 	if [ -f $1 ]; then
 		case $(basename $1) in
-			"remove") echo "That isn't possible"; return 1;;
-			"restore") echo "That isn't possible"; return 1;;
-			"libSafe") echo "Back off dude"; return 1;;
+			"remove") errorMessage $action $1 "I am not going to ${action} myself.";;
+			"restore") errorMessage $action $1 "I am not going to ${action} myself.";;
+			"libSafe") errorMessage $action $1 "Back off dude. That is my library.";;
 		esac		
 		return 0;
 	else
-		if $inBool; then action="remove"
-		else action="restore"; fi
 		if [ -d $1 ]; then
-			echo "${action}: cannot ${action} '${1}': Is a directory"
-		else echo "${action}: cannot ${action} '${1}': No such file or directory"
+			errorMessage $action $1 "Is a directory"
+		else errorMessage $action $1 "No such file or directory"
 		fi
-		return 1;
 	fi
+}
+
+# parameters are action, file name, message
+errorMessage() 
+{
+	echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1
 }
 
 # parameters are, fileId, option
@@ -86,13 +89,3 @@ getLine()
 {
 	grep $2 $1 $restorePath
 }
-
-interact() 
-{
-	echo "There is nothing here yet!"
-}
-
-verbose() 
-{  
-	echo "There is nothing here yet!"
-} 
