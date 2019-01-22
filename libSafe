@@ -1,7 +1,5 @@
 #!bin/bash/
 
-# general function library for safe-remove
-
 restorePath="${HOME}/deleted/.restore.info"
 inBool=""
 verboseBool=false
@@ -9,16 +7,17 @@ recurseBool=false
 interactBool=false
 optionsChecked=false
 
+# [remove|restore] [OPTION]... FILE...
 check() 
 {
 	if ! $optionsChecked; then
 		while getopts "inovr" o
 		do	case "$o" in
-			n) inBool=true;;
-			o) inBool=false;;
-			i) interactBool=true;;
-			v) verboseBool=true;;
-			r) recurseBool=true;;
+			n) inBool=true;; # indicates the file is being "checked in" to our recycling bin-like structure, ie a remove action
+			o) inBool=false;; # indicates the file is being "checked out", ie a restore action
+			i) interactBool=true;; # interactive, decide when to delete files, no effect on restore, but thats just because of the spec. could easily be tooled into restore
+			v) verboseBool=true;; # verbose. messages appear when files are restored or removed
+			r) recurseBool=true;; # recursive. allows action on directories
 			*) echo -e "check usage: $(basename $0) [-i]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
 			esac
 			optionsChecked=true
@@ -26,40 +25,41 @@ check()
 		shift $(($OPTIND-1))
 	fi;
 	
-	if [ "$#" -gt "1" ]; then
+	if [ "$#" -gt "1" ]; then # iterate through additional file arguments and call check on them
 		for arg in "$@"; do
 			if [ ! "$arg" == "$1" ] && [ ! -z "$arg" ]; then 
 			check "$arg"; fi
 		done
 	fi
 
-	if validate $1
+	if validate $1 # validation of the input, ensures that the only thing that can make it passed here are regular files
 	then
 		if $inBool; then 
 			fileId="$(basename ${1}_$(stat -c %i $1))"
 		else fileId=$(basename $1); fi
 	else exit; fi
 	
-	if $inBool
+	if $inBool # as you might guess, here we branch to either remove or restore the supplied regular file
 	then
 		interact "remove: remove file '${1}'? y/n: "
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
 		echo "${fileId}:$(readlink -m $1)" >> $restorePath
 		mv $1 "${HOME}/deleted/${fileId}"
-		if $verboseBool; then echo "removed file."; fi
+		if $verboseBool; then echo "remove: removed file."; fi
 	elif ! $inBool
 	then
 		if [ -e $1 ] && getLine $fileId -q
 		then
 			returnPath=$(getLine $fileId | cut -d":" -f 2)
-			if [ -e $returnPath ]; then
+			if [ -e $returnPath ]; then # this prompt would normally be triggered by the interactive flag, but the spec calls for it to be not for some reason
 				read -p "File exists at location already. Do you want to overwrite? y/n: " reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
 			fi;
-
+			
+			if [ ! -e $(dirname $returnPath) ]; then makePath $returnPath; fi
 			mv "${HOME}/deleted/${fileId}" $returnPath
 			getLine $fileId -v > tmp
 			mv tmp $restorePath
-			if $verboseBool; then echo "restored file."; fi
+			if $verboseBool; then echo "restore: restored file."; fi
 		else 
 			errorMessage "restore" $1 "This file is not being managed by restore currently."
 		fi
@@ -68,7 +68,7 @@ check()
 
 # parameters are file path, action, recurseBool
 validate() 
-{
+{ # this function ensures that directories and all other non regular file inputs are handled, including general input errors
 	if $inBool; then action="remove"
 	else action="restore"; fi
 
@@ -91,6 +91,7 @@ validate()
 				if [ -z "$(ls -A $1)" ]; then
 					interact "remove: remove empty directory '${1}'? y/n: "
 					rmdir $1
+					if verboseBool; then echo "remove: removed directory."; fi
 				elif $interactBool; then echo "remove: ${1} directory is not empty"; fi
 				exit;
 			fi
@@ -101,18 +102,27 @@ validate()
 
 # parameters are action, file name, message
 errorMessage() 
-{
+{ # generic error function conveniently pushes our error messages to standard error
 	echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1
 }
 
 # parameter is message
 interact()
-{
+{ # this prompts the user with a custom message and a a y/n response, and terminates the program if they say anything but y or Y as their first character
 	if $interactBool; then read -p "${1}" reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi; fi;
 }
 
-# parameters are, fileId, option
+# parameter is path
+makePath() 
+{ # this recursively generates parent directories for a file that is being restored, based on the original path.
+	if $verboseBool; then echo "restore: creating directory $1"; fi
+	parent=$(dirname $1)
+	if [ ! -e $parent ]; then makePath $parent;
+	else mkdir $1; fi
+}
+
+# parameters are fileId, option
 getLine()
-{
+{ # this merely retrieves the line of the restore file that refers to our requested file
 	grep $2 $1 $restorePath
 }
