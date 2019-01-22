@@ -3,18 +3,20 @@
 # general function library for safe-remove
 
 restorePath="${HOME}/deleted/.restore.info"
-inBool="";
-verboseBool=false;
-recurseBool=false;
-optionsChecked=false;
+inBool=""
+verboseBool=false
+recurseBool=false
+interactBool=false
+optionsChecked=false
 
 check() 
 {
 	if ! $optionsChecked; then
-		while getopts "iovr" o
+		while getopts "inovr" o
 		do	case "$o" in
-			i) inBool=true;;
+			n) inBool=true;;
 			o) inBool=false;;
+			i) interactBool=true;;
 			v) verboseBool=true;;
 			r) recurseBool=true;;
 			*) echo -e "check usage: $(basename $0) [-i]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
@@ -34,30 +36,30 @@ check()
 	if validate $1
 	then
 		if $inBool; then 
-			fileId="${1}_$(stat -c %i $1)"
+			fileId="$(basename ${1}_$(stat -c %i $1))"
 		else fileId=$(basename $1); fi
 	else exit; fi
 	
 	if $inBool
 	then
+		interact "remove: remove file '${1}'? y/n: "
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
 		echo "${fileId}:$(readlink -m $1)" >> $restorePath
 		mv $1 "${HOME}/deleted/${fileId}"
-		if $verboseBool; then echo "Removed file."; fi
+		if $verboseBool; then echo "removed file."; fi
 	elif ! $inBool
 	then
 		if [ -e $1 ] && getLine $fileId -q
 		then
 			returnPath=$(getLine $fileId | cut -d":" -f 2)
 			if [ -e $returnPath ]; then
-				read -p "File exists at location already. Do you want to overwrite? y/n: " reply
-				if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
+				read -p "File exists at location already. Do you want to overwrite? y/n: " reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
 			fi;
 
 			mv "${HOME}/deleted/${fileId}" $returnPath
 			getLine $fileId -v > tmp
 			mv tmp $restorePath
-			if $verboseBool; then echo "Restored file."; fi
+			if $verboseBool; then echo "restored file."; fi
 		else 
 			errorMessage "restore" $1 "This file is not being managed by restore currently."
 		fi
@@ -83,7 +85,14 @@ validate()
 	else
 		if [ -d $1 ]; then
 			if ! $recurseBool; then errorMessage $action $1 "Is a directory"; 
-			# else check; 
+			else 
+				interact "remove: descend into directory '${1}'? y/n: "
+				check "${1}"*;
+				if [ -z "$(ls -A $1)" ]; then
+					interact "remove: remove empty directory '${1}'? y/n: "
+					rmdir $1
+				elif $interactBool; then echo "remove: ${1} directory is not empty"; fi
+				exit;
 			fi
 		else errorMessage $action $1 "No such file or directory"
 		fi
@@ -94,6 +103,12 @@ validate()
 errorMessage() 
 {
 	echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1
+}
+
+# parameter is message
+interact()
+{
+	if $interactBool; then read -p "${1}" reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi; fi;
 }
 
 # parameters are, fileId, option

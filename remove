@@ -4,5 +4,5 @@
 
 . ./libSafe
 
-check -i "$@"
+check -n "$@"
 
