@@ -17,7 +17,7 @@ check()
 			o) inBool=false;; # indicates the file is being "checked out", ie a restore action
 			i) interactBool=true;; # interactive, decide when to delete files, no effect on restore, but thats just because of the spec. could easily be tooled into restore
 			v) verboseBool=true;; # verbose. messages appear when files are restored or removed
-			r) recurseBool=true;; # recursive. allows action on directories
+			r) recurseBool=true;; # recursive. allows action on directories. doesnt matter for restore, since libSafe doesnt store directories. of course a restored file will have its directory structure rebuilt
 			*) echo -e "check usage: $(basename $0) [-n]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
 			esac
 			optionsChecked=true
@@ -55,11 +55,13 @@ check()
 				read -p "File exists at location already. Do you want to overwrite? y/n: " reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
 			fi;
 			
-			if [ ! -e $(dirname $returnPath) ]; then makePath $(dirname $returnPath); fi
-			mv "${HOME}/deleted/${fileId}" $returnPath
-			getLine $fileId -v > tmp
-			mv tmp $restorePath
-			if $verboseBool; then echo "restore: restored file."; fi
+			echo "Return path: $returnPath"
+			if [ ! -d $(dirname $returnPath) ]; then makePath $(dirname $returnPath); fi
+			if mv "${HOME}/deleted/${fileId}" $returnPath;  then
+				getLine $fileId -v > tmp
+				mv tmp $restorePath
+				if $verboseBool; then echo "restore: restored file."; fi
+			fi
 		else 
 			errorMessage "restore" $1 "This file is not being managed by restore currently."
 		fi
@@ -69,8 +71,6 @@ check()
 # parameters are file path, action, recurseBool
 validate() 
 { # this function ensures that directories and all other non regular file inputs are handled, including general input errors
-	filePath=$(readlink -m  $1)
-
 	if $inBool; then action="remove"
 	else action="restore"; fi
 
@@ -86,43 +86,32 @@ validate()
 		return 0;
 	else
 		if [ -d $1 ]; then
-			if ! $recurseBool; then errorMessage $action $1 "Is a directory"; 
-			else 
-				dirContent=$(getDirectoryContents $1)
-				if ! interact "remove: descend into directory '${1}'? y/n: "; then return 1; fi
-				if [ ${#dirContent} -gt 0 ]; then 
-					check $dirContent && dirContent=$(getDirectoryContents $1); fi
-				if [ ${#dirContent} -gt 0 ]; then
-					if $verboseBool; then echo "remove: ${1} directory is not empty"; fi; 
-					return 1; 
-				fi
-				if ! interact "remove: remove empty directory '${1}'? y/n: "; then return 1; fi
-				rmdir $1
-				if $verboseBool; then echo "remove: removed directory."; fi
-				return 1
+			if ! $recurseBool; then errorMessage "remove" $1 "Is a directory"
+			else
+				recurseDirectory $1 
 			fi
 		else errorMessage $action $1 "No such file or directory"
-		return 1
 		fi
+		return 1
 	fi
 }
 
 # parameters are action, file name, message
 errorMessage() 
 { 
-echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1 
+	echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1 
 }
 
 # parameters are fileId, option
 getLine() 
 { 
-grep $2 $1 $restorePath 
+	grep $2 $1 $restorePath 
 }
 
 # parameter is directory
 getDirectoryContents() 
-{ 
-find $1 -mindepth 1 -maxdepth 1 
+{ # return the shallow contents of a directory
+	find $1 -mindepth 1 -maxdepth 1 
 }
 
 # parameter is message
@@ -136,9 +125,25 @@ interact()
 makePath() 
 { # this recursively generates parent directories for a file that is being restored, based on the original path.
 	parent=$(dirname $1)
-	if [ ! -e $parent ]; 
-		then makePath $parent;
-	else mkdir $1; 
-		if $verboseBool; then echo "restore: creating directory $1"; fi
+	if [ ! -d $parent ]; then makePath $parent; fi
+	mkdir $1; 
+	if $verboseBool; then echo "restore: creating directory $1"; fi
+}
+
+# parameter is directory
+recurseDirectory() 
+{
+	dirContent=$(getDirectoryContents $1)
+	if ! interact "remove: descend into directory '${1}'? y/n: "; then return; fi
+	if [ ${#dirContent} -gt 0 ]; then 
+		check $dirContent && dirContent=$(getDirectoryContents $1); fi
+	if [ ${#dirContent} -gt 0 ]; then
+		if $verboseBool; then echo "remove: ${1} directory is not empty"; fi; 
+		return; 
+	elif ! interact "remove: remove empty directory '${1}'? y/n: "; then return;
+	else 
+		rmdir $1
+		if $verboseBool; then echo "remove: removed directory $1."; fi
 	fi
+	return	
 }
