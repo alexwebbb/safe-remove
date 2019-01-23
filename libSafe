@@ -6,6 +6,7 @@ verboseBool=false
 recurseBool=false
 interactBool=false
 optionsChecked=false
+filePath=""
 
 # [remove|restore] [OPTION]... FILE...
 check() 
@@ -25,28 +26,30 @@ check()
 		shift $(($OPTIND-1))
 	fi;
 	
+	filePath=$1
+	
 	if [ "$#" -gt "1" ]; then # iterate through additional file arguments and call check on them each individually. the check function itself only ever processes files one at a time. the instance of check handling these arguments will process the first argument itself.
 		for arg in "$@"; do
-			if [ ! "$arg" = "$1" ] && [ ! -z "$arg" ]; then 
+			if [ ! "$arg" = "$filePath" ] && [ ! -z "$arg" ]; then 
 			check "$arg"; fi
 		done
 	fi
 
-	if validate $1; then # validation of the input, ensures that the only thing that can make it passed here are regular files
+	if validate $filePath; then # validation of the input, ensures that the only thing that can make it passed here are regular files
 		if $inBool; then # we prep the filename for our regular file which we will be processing
-			fileId="$(basename ${1}_$(stat -c %i $1))"
-		else fileId=$(basename $1); fi
+			fileId="$(basename ${filePath}_$(stat -c %i $filePath))"
+		else fileId=$(basename $filePath); fi
 	else return 1; fi
 	
 	if $inBool; then # as you might guess, here we branch to either remove or restore the supplied regular file
-		if ! interact "remove: remove file '${1}'? y/n: "; then return 1; fi
+		if ! interact "remove: remove file '${filePath}'? y/n: "; then return 1; fi
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
-		echo "${fileId}:$(readlink -m $1)" >> $restorePath
-		mv $1 "${HOME}/deleted/${fileId}"
+		echo "${fileId}:$(readlink -m $filePath)" >> $restorePath
+		mv $filePath "${HOME}/deleted/${fileId}"
 		if $verboseBool; then echo "remove: removed file '$1'."; fi
 	elif ! $inBool
 	then
-		if [ -e $1 ] && getLine $fileId -q
+		if [ -e $filePath ] && getLine $fileId -q
 		then
 			returnPath=$(getLine $fileId | cut -d":" -f 2)
 			if [ -e $returnPath ]; then # this prompt would normally be triggered by the interactive flag, but the spec calls for it to be not for some reason
@@ -60,7 +63,7 @@ check()
 				if $verboseBool; then echo "restore: restored file."; fi
 			fi
 		else 
-			errorMessage "restore" $1 "This file is not being managed by restore currently."
+			errorMessage "restore" $filePath "This file is not being managed by restore currently."
 		fi
 	fi
 }
@@ -81,6 +84,8 @@ validate()
 			"libSafe") errorMessage $action $1 "Take it easy friend. That is my library. Go $action something else.";;
 		esac		
 		return 0
+	elif [ -f "${HOME}/deleted/$1" ]; then
+		filePath="${HOME}/deleted/$1"
 	else
 		if [ -d $1 ]; then
 			if ! $recurseBool; then errorMessage "remove" $1 "Is a directory"
