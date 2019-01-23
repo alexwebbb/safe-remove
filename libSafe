@@ -27,7 +27,7 @@ check()
 	
 	if [ "$#" -gt "1" ]; then # iterate through additional file arguments and call check on them
 		for arg in "$@"; do
-			if [ ! "$arg" == "$1" ] && [ ! -z "$arg" ]; then 
+			if [ ! "$arg" = "$1" ] && [ ! -z "$arg" ]; then 
 			check "$arg"; fi
 		done
 	fi
@@ -72,7 +72,7 @@ validate()
 	if $inBool; then action="remove"
 	else action="restore"; fi
 
-	if [ "$1" == "" ]; then 
+	if [ "${1}" = "" ]; then 
 	errorMessage $action $1 "Please supply a file name"; fi;
 	
 	if [ -f $1 ]; then
@@ -86,14 +86,13 @@ validate()
 		if [ -d $1 ]; then
 			if ! $recurseBool; then errorMessage $action $1 "Is a directory"; 
 			else 
-				interact "remove: descend into directory '${1}'? y/n: "
-				if [ ! -z "$(ls -A $1)" ]; then check "${1}"*
-				else interact "remove: remove empty directory '${1}'? y/n: "
+				interact "remove: descend into directory '${1}'? y/n: "; exit
+				if [ ! -z "$(ls -A $1)" ]; then check "${1}/$(ls -A $1)"; fi
+				if [ -z "$(ls -A $1)" ]; then
+					interact "remove: remove empty directory '${1}'? y/n: "
 					rmdir $1
 					if $verboseBool; then echo "remove: removed directory."; fi
-				fi
-				if $interactBool; then echo "remove: ${1} directory is not empty"; fi
-				exit;
+				elif $verboseBool; then echo "remove: ${1} directory is not empty"; fi
 			fi
 		else errorMessage $action $1 "No such file or directory"
 		fi
@@ -109,7 +108,8 @@ errorMessage()
 # parameter is message
 interact()
 { # this prompts the user with a custom message and a a y/n response, and terminates the program if they say anything but y or Y as their first character
-	if $interactBool; then read -p "${1}" reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi; fi;
+	if $interactBool; then read -p "${1}" reply 
+	if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi; fi;
 }
 
 # parameter is path
