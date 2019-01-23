@@ -9,7 +9,7 @@ optionsChecked=false
 
 # [remove|restore] [OPTION]... FILE...
 check() 
-{
+{ # ironically you can't actually call check by itself, it needs to be either a call to remove or restore, though as long as you are using the -n or -o flags it doesn't matter which one you call
 	if ! $optionsChecked; then
 		while getopts "inovr" o
 		do	case "$o" in
@@ -17,30 +17,28 @@ check()
 			o) inBool=false;; # indicates the file is being "checked out", ie a restore action
 			i) interactBool=true;; # interactive, decide when to delete files, no effect on restore, but thats just because of the spec. could easily be tooled into restore
 			v) verboseBool=true;; # verbose. messages appear when files are restored or removed
-			r) recurseBool=true;; # recursive. allows action on directories. doesnt matter for restore, since libSafe doesnt store directories. of course a restored file will have its directory structure rebuilt
-			*) echo -e "check usage: $(basename $0) [-n]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
+			r) recurseBool=true;; # recursive. allows action on directories. doesnt matter for restore, since libSafe doesnt store directories. of course a restored file will have its directory structure rebuilt, but this will happen regardless of whether this option is selected
+			*) echo -e "check usage: $(basename $0) [-n]: 'check in, aka remove' [-o]: 'check out, aka restore' [-v]: 'verbose mode' [-i]: 'interactive mode' [-r]: 'enable recursive action'.\nBoth remove and restore map to the internal function 'check', either may be used as long as the flags are utilized." >&2; exit 1;;
 			esac
 			optionsChecked=true
 		done
 		shift $(($OPTIND-1))
 	fi;
 	
-	if [ "$#" -gt "1" ]; then # iterate through additional file arguments and call check on them
+	if [ "$#" -gt "1" ]; then # iterate through additional file arguments and call check on them each individually. the check function itself only ever processes files one at a time. the instance of check handling these arguments will process the first argument itself.
 		for arg in "$@"; do
 			if [ ! "$arg" = "$1" ] && [ ! -z "$arg" ]; then 
 			check "$arg"; fi
 		done
 	fi
 
-	if validate $1 # validation of the input, ensures that the only thing that can make it passed here are regular files
-	then
-		if $inBool; then 
+	if validate $1; then # validation of the input, ensures that the only thing that can make it passed here are regular files
+		if $inBool; then # we prep the filename for our regular file which we will be processing
 			fileId="$(basename ${1}_$(stat -c %i $1))"
 		else fileId=$(basename $1); fi
 	else return 1; fi
 	
-	if $inBool # as you might guess, here we branch to either remove or restore the supplied regular file
-	then
+	if $inBool; then # as you might guess, here we branch to either remove or restore the supplied regular file
 		if ! interact "remove: remove file '${1}'? y/n: "; then return 1; fi
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
 		echo "${fileId}:$(readlink -m $1)" >> $restorePath
@@ -52,10 +50,9 @@ check()
 		then
 			returnPath=$(getLine $fileId | cut -d":" -f 2)
 			if [ -e $returnPath ]; then # this prompt would normally be triggered by the interactive flag, but the spec calls for it to be not for some reason
-				read -p "File exists at location already. Do you want to overwrite? y/n: " reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
+				read -p "restore: File exists at location already. Do you want to overwrite? y/n: " reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
 			fi;
 			
-			echo "Return path: $returnPath"
 			if [ ! -d $(dirname $returnPath) ]; then makePath $(dirname $returnPath); fi
 			if mv "${HOME}/deleted/${fileId}" $returnPath;  then
 				getLine $fileId -v > tmp
@@ -79,11 +76,11 @@ validate()
 	
 	if [ -f $1 ]; then
 		case $(basename $1) in
-			"remove") errorMessage $action $1 "I am not going to ${action} myself.";;
-			"restore") errorMessage $action $1 "I am not going to ${action} myself.";;
-			"libSafe") errorMessage $action $1 "Back off dude. That is my library.";;
+			"remove") errorMessage $action $1 "Attempting to ${action} remove – operation aborted.";;
+			"restore") errorMessage $action $1 "I can't ${action} my own files.";;
+			"libSafe") errorMessage $action $1 "Take it easy friend. That is my library. Go $action something else.";;
 		esac		
-		return 0;
+		return 0
 	else
 		if [ -d $1 ]; then
 			if ! $recurseBool; then errorMessage "remove" $1 "Is a directory"
@@ -98,13 +95,13 @@ validate()
 
 # parameters are action, file name, message
 errorMessage() 
-{ 
+{ # generic error function conveniently pushes our error messages to standard error
 	echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1 
 }
 
 # parameters are fileId, option
 getLine() 
-{ 
+{ # this retrieves the line of the restore file that refers to our requested file
 	grep $2 $1 $restorePath 
 }
 
@@ -116,23 +113,26 @@ getDirectoryContents()
 
 # parameter is message
 interact()
-{ # this prompts the user with a custom message and a a y/n response, and terminates the program if they say anything but y or Y as their first character
+{ # this prompts the user with a custom message and a a y/n response, and terminates the program if they say anything but y or Y as their first character.
 	if $interactBool; then read -p "${1}" reply 
-	if [[ ! "${reply:0:1}" == [yY] ]]; then return 1; fi; fi;
+		if [[ ! "${reply:0:1}" == [yY] ]]; then return 1; fi;
+	fi;
 }
 
 # parameter is path
 makePath() 
 { # this recursively generates parent directories for a file that is being restored, based on the original path.
 	parent=$(dirname $1)
+	if [ -f $parent ]; then errorMessage "restore" $parent "A regular file exists with the same name as the target file's original parent directory. Try correcting the issue and running the program again."
 	if [ ! -d $parent ]; then makePath $parent; fi
-	mkdir $1; 
-	if $verboseBool; then echo "restore: creating directory $1"; fi
+	if mkdir $1; then 
+		if $verboseBool; then echo "restore: creating directory $1"; fi
+	fi
 }
 
 # parameter is directory
 recurseDirectory() 
-{
+{ # this function allows us to step through the hierarchy of a directory and selectively delete portions of it, assuming we have interactive enabled. otherwise it just blows all the files away, though it does so safely of course
 	dirContent=$(getDirectoryContents $1)
 	if ! interact "remove: descend into directory '${1}'? y/n: "; then return; fi
 	if [ ${#dirContent} -gt 0 ]; then 
