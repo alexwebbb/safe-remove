@@ -37,11 +37,11 @@ check()
 		if $inBool; then 
 			fileId="$(basename ${1}_$(stat -c %i $1))"
 		else fileId=$(basename $1); fi
-	else exit; fi
+	else return 1; fi
 	
 	if $inBool # as you might guess, here we branch to either remove or restore the supplied regular file
 	then
-		interact "remove: remove file '${1}'? y/n: "
+		if ! interact "remove: remove file '${1}'? y/n: "; then return 1; fi
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
 		echo "${fileId}:$(readlink -m $1)" >> $restorePath
 		mv $1 "${HOME}/deleted/${fileId}"
@@ -55,7 +55,7 @@ check()
 				read -p "File exists at location already. Do you want to overwrite? y/n: " reply; if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi;
 			fi;
 			
-			if [ ! -e $(dirname $returnPath) ]; then makePath $returnPath; fi
+			if [ ! -e $(dirname $returnPath) ]; then makePath $(dirname $returnPath); fi
 			mv "${HOME}/deleted/${fileId}" $returnPath
 			getLine $fileId -v > tmp
 			mv tmp $restorePath
@@ -69,6 +69,8 @@ check()
 # parameters are file path, action, recurseBool
 validate() 
 { # this function ensures that directories and all other non regular file inputs are handled, including general input errors
+	filePath=$(readlink -m  $1)
+
 	if $inBool; then action="remove"
 	else action="restore"; fi
 
@@ -86,43 +88,57 @@ validate()
 		if [ -d $1 ]; then
 			if ! $recurseBool; then errorMessage $action $1 "Is a directory"; 
 			else 
-				interact "remove: descend into directory '${1}'? y/n: "; exit
-				if [ ! -z "$(ls -A $1)" ]; then check "${1}/$(ls -A $1)"; fi
-				if [ -z "$(ls -A $1)" ]; then
-					interact "remove: remove empty directory '${1}'? y/n: "
-					rmdir $1
-					if $verboseBool; then echo "remove: removed directory."; fi
-				elif $verboseBool; then echo "remove: ${1} directory is not empty"; fi
+				dirContent=$(getDirectoryContents $1)
+				if ! interact "remove: descend into directory '${1}'? y/n: "; then return 1; fi
+				if [ ${#dirContent} -gt 0 ]; then 
+					check $dirContent && dirContent=$(getDirectoryContents $1); fi
+				if [ ${#dirContent} -gt 0 ]; then
+					if $verboseBool; then echo "remove: ${1} directory is not empty"; fi; 
+					return 1; 
+				fi
+				if ! interact "remove: remove empty directory '${1}'? y/n: "; then return 1; fi
+				rmdir $1
+				if $verboseBool; then echo "remove: removed directory."; fi
+				return 1
 			fi
 		else errorMessage $action $1 "No such file or directory"
+		return 1
 		fi
 	fi
 }
 
 # parameters are action, file name, message
 errorMessage() 
-{ # generic error function conveniently pushes our error messages to standard error
-	echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1
+{ 
+echo "${1}: cannot ${1} '${2}': ${3}" >&2; exit 1 
+}
+
+# parameters are fileId, option
+getLine() 
+{ 
+grep $2 $1 $restorePath 
+}
+
+# parameter is directory
+getDirectoryContents() 
+{ 
+find $1 -mindepth 1 -maxdepth 1 
 }
 
 # parameter is message
 interact()
 { # this prompts the user with a custom message and a a y/n response, and terminates the program if they say anything but y or Y as their first character
 	if $interactBool; then read -p "${1}" reply 
-	if [[ ! "${reply:0:1}" == [yY] ]]; then exit; fi; fi;
+	if [[ ! "${reply:0:1}" == [yY] ]]; then return 1; fi; fi;
 }
 
 # parameter is path
 makePath() 
 { # this recursively generates parent directories for a file that is being restored, based on the original path.
-	if $verboseBool; then echo "restore: creating directory $1"; fi
 	parent=$(dirname $1)
-	if [ ! -e $parent ]; then makePath $parent;
-	else mkdir $1; fi
-}
-
-# parameters are fileId, option
-getLine()
-{ # this merely retrieves the line of the restore file that refers to our requested file
-	grep $2 $1 $restorePath
+	if [ ! -e $parent ]; 
+		then makePath $parent;
+	else mkdir $1; 
+		if $verboseBool; then echo "restore: creating directory $1"; fi
+	fi
 }
