@@ -43,7 +43,7 @@ check()
 		[ -d "${HOME}/deleted/" ] || mkdir "${HOME}/deleted/"
 		echo "${fileId}:$(readlink -m $1)" >> $restorePath
 		mv $1 "${HOME}/deleted/${fileId}"
-		if $verboseBool; then echo "remove: removed file."; fi
+		if $verboseBool; then echo "remove: removed file '$1'."; fi
 	elif ! $inBool
 	then
 		if [ -e $1 ] && getLine $fileId -q
@@ -123,7 +123,7 @@ interact()
 makePath() 
 { # this recursively generates parent directories for a file that is being restored, based on the original path.
 	parent=$(dirname $1)
-	if [ -f $parent ]; then errorMessage "restore" $parent "A regular file exists with the same name as the target file's original parent directory. Try correcting the issue and running the program again."
+	if [ -f $parent ]; then errorMessage "restore" $parent "A regular file exists with the same name as the target file's original parent directory. Try correcting the issue and running the program again."; fi
 	if [ ! -d $parent ]; then makePath $parent; fi
 	if mkdir $1; then 
 		if $verboseBool; then echo "restore: creating directory $1"; fi
@@ -143,7 +143,7 @@ recurseDirectory()
 	elif ! interact "remove: remove empty directory '${1}'? y/n: "; then return;
 	else 
 		rmdir $1
-		if $verboseBool; then echo "remove: removed directory $1."; fi
+		if $verboseBool; then echo "remove: removed directory '$1'."; fi
 	fi
 	return	
 }
